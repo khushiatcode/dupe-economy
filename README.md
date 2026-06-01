@@ -1,47 +1,106 @@
-# Dupe Economy | Full-Stack Product Intelligence Platform
+# Dupe Economy
 
-**Product Analyst / Product Strategy Project | May 2026**
+Dupe Economy is a Next.js app for tracking prestige products and the lower-cost alternatives that appear around them. It ships with a seeded SQLite/libSQL dataset and can run a Gemini-powered scan to add current fashion, beauty, skincare, and haircare signals.
 
-Dupe Economy is a full-stack AI-powered market intelligence platform that tracks how viral fashion, beauty, skincare, and haircare products move through the dupe economy from prestige launch to mass-market imitation. The system combines product analytics, trend discovery, competitive intelligence, and automated reporting into one editorial-style dashboard for analyzing consumer behavior and market response patterns.
+The app is intentionally small: a dashboard, a weekly scan flow, scan history, and a market-response view.
 
-## Key Contributions
+## What It Does
 
-- Designed and implemented an end-to-end intelligence pipeline using **Next.js**, **Turso SQLite**, **Gemini Flash 2.0**, and **Google Search Grounding** to identify newly viral products, emerging dupes, brand responses, acquisition signals, price gaps, and mass-market copycat behavior.
-- Built a structured database schema to track products, scan runs, findings, and market-response signals over time, enabling trend analysis across categories without hardcoding brands or competitors.
-- Created product-facing dashboards for monitoring viral product and dupe activity, ranking products by price differential, tracking weekly intelligence reports, and identifying mass-market response patterns.
+- Shows seeded and scan-discovered products by category.
+- Sorts products by observed price differential.
+- Runs a two-stage Gemini scan with Google Search grounding:
+  - discovery of recently viral products and known alternatives
+  - deeper market signals such as brand responses, acquisitions, declining trends, and mass-market launches
+- Stores scan runs, findings, products, and mass-market signals in libSQL.
+- Falls back to a local `dupe-economy.db` file when Turso variables are not set.
 
-## Product Analyst Lens
+## Tech Stack
 
-The platform turns scattered market signals into structured intelligence for pricing strategy, competitive positioning, assortment planning, and trend forecasting. It demonstrates market research automation, data-backed product strategy, AI-assisted analysis, full-stack analytics tooling, and consumer trend intelligence.
+- Next.js 14 App Router
+- React 18
+- Tailwind CSS 4
+- libSQL/Turso via `@libsql/client`
+- Gemini 2.0 Flash via `@google/generative-ai`
 
-## Setup
+## Getting Started
 
-1. Clone repo
-2. `npm install`
-3. Create account at turso.tech
-4. `turso db create dupe-economy`
-5. `turso db tokens create dupe-economy`
-6. Add to `.env.local`:
-
-```bash
-TURSO_DATABASE_URL=libsql://your-db.turso.io
-TURSO_AUTH_TOKEN=your-token
-GEMINI_API_KEY=your-key
-```
-
-7. `npm run dev`
-8. Schema initializes and seeds on first request to `/api/products`
-9. Test scan:
+Install dependencies:
 
 ```bash
-curl -X POST http://localhost:3000/api/scan
+npm install
 ```
 
-## Vercel
+Create `.env.local`:
 
-Add all three env vars in the Vercel dashboard. Turso works natively with Vercel serverless. No other changes needed.
+```bash
+GEMINI_API_KEY=your-gemini-api-key
 
-## Local Fallback
+# Optional. If omitted, the app uses file:dupe-economy.db locally.
+TURSO_DATABASE_URL=libsql://your-database.turso.io
+TURSO_AUTH_TOKEN=your-turso-token
+```
 
-If Turso env vars are not present, the app uses a local `file:dupe-economy.db` database for development.
+Run the app:
 
+```bash
+npm run dev
+```
+
+Open `http://localhost:3000`. The home route redirects to `/intelligence`.
+
+The database schema is created lazily on first API request, and the seed product dataset is inserted if the `products` table is empty.
+
+## Pages
+
+- `/intelligence` - product intelligence dashboard with category filters and price-differential sorting
+- `/scan` - run the current scan and view newly discovered products, findings, and mass-market responses
+- `/archive` - previous scan runs and findings
+- `/market-responses` - grouped mass-market response signals by responding brand
+
+## API Routes
+
+- `GET /api/products` - list products
+- `GET /api/products?category=fashion` - filter by category
+- `GET /api/products?discovered_by=scan` - filter by source
+- `POST /api/scan` - run discovery and depth scans
+- `GET /api/scan/latest` - latest completed scan
+- `GET /api/history` - all scan runs with findings
+- `GET /api/findings/:scanId` - findings for one scan
+- `GET /api/market-responses` - all mass-market response signals
+- `GET /api/market-responses?brand=ELF` - filter response signals by responding brand
+
+## Scan Behavior
+
+`POST /api/scan` requires `GEMINI_API_KEY`. If a completed scan exists from the past 6 hours, the route returns the cached scan instead of running another one.
+
+Scans are best-effort. Discovery and depth run independently, so one stage can fail while the other still records data. A scan is marked `failed` only if both stages fail.
+
+## Database Tables
+
+- `products`
+- `scan_runs`
+- `findings`
+- `mass_market_signals`
+
+The schema lives in `lib/schema.js`; query helpers live in `lib/queries.js`.
+
+## Scripts
+
+```bash
+npm run dev
+npm run build
+npm run start
+npm run lint
+```
+
+## Deployment Notes
+
+For Vercel, set these environment variables in the project settings:
+
+```bash
+GEMINI_API_KEY=...
+TURSO_DATABASE_URL=...
+TURSO_AUTH_TOKEN=...
+```
+
+Use Turso or another libSQL-compatible remote database for deployed environments. The local file fallback is meant for development.
